@@ -11,6 +11,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using IndivduellUppgiftAPI.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace IndivduellUppgiftAPI
 {
@@ -28,6 +34,33 @@ namespace IndivduellUppgiftAPI
 		{
 
 			services.AddControllers();
+			services.AddDbContext<AppDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IdentityDatabase")));
+
+			//Identity
+			services.AddIdentity<AppUser, IdentityRole>()
+				.AddEntityFrameworkStores<AppDbContext>()
+				.AddDefaultTokenProviders();
+
+			//Authentication
+			services.AddAuthentication(options =>
+			{
+				options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+				options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+				options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+			})
+				.AddJwtBearer(options =>
+				{
+					options.SaveToken = true;
+					options.TokenValidationParameters = new TokenValidationParameters()
+					{
+						ValidateIssuer = true,
+						ValidateAudience = true,
+						ValidAudience = Configuration["JWT:ValidAudience"],
+						ValidIssuer = Configuration["JWT:ValidIssuer"],
+						IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["JWT:Secret"]))
+					};
+				});
+
 			services.AddSwaggerGen(c =>
 			{
 				c.SwaggerDoc("v1", new OpenApiInfo { Title = "IndivduellUppgiftAPI", Version = "v1" });
@@ -49,6 +82,7 @@ namespace IndivduellUppgiftAPI
 			app.UseRouting();
 
 			app.UseAuthorization();
+			app.UseAuthentication();
 
 			app.UseEndpoints(endpoints =>
 			{
