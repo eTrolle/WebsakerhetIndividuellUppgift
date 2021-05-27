@@ -36,6 +36,7 @@ namespace IndivduellUppgiftAPI
 			services.AddControllers();
 			services.AddDbContext<AppDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IdentityDatabase")));
 
+
 			//Identity
 			services.AddIdentity<AppUser, IdentityRole>()
 				.AddEntityFrameworkStores<AppDbContext>()

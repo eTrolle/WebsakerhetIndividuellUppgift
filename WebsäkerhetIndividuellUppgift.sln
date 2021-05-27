@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31005.135
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IndivduellUppgiftAPI", "IndivduellUppgiftAPI\IndivduellUppgiftAPI.csproj", "{7F7CC883-DE0C-40EA-9E9F-7F00AFB9C207}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IndivduellUppgiftAPI", "IndivduellUppgiftAPI\IndivduellUppgiftAPI.csproj", "{7F7CC883-DE0C-40EA-9E9F-7F00AFB9C207}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelLib", "ModelLib\ModelLib.csproj", "{15AE3E4A-6626-4904-828E-8D04EC34673C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModelLib", "ModelLib\ModelLib.csproj", "{15AE3E4A-6626-4904-828E-8D04EC34673C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
