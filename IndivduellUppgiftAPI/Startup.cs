@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using IndivduellUppgiftAPI.Data;
 
 namespace IndivduellUppgiftAPI
 {
@@ -35,7 +36,7 @@ namespace IndivduellUppgiftAPI
 
 			services.AddControllers();
 			services.AddDbContext<AppDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IdentityDatabase")));
-
+			services.AddDbContext<NorthwindContext>(options => options.UseSqlServer(Configuration.GetConnectionString("NorthwindDatabase")));
 
 			//Identity
 			services.AddIdentity<AppUser, IdentityRole>()

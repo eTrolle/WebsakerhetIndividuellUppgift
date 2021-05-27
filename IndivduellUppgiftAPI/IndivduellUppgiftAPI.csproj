@@ -24,4 +24,8 @@
     <ProjectReference Include="..\ModelLib\ModelLib.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Data\" />
+  </ItemGroup>
+
 </Project>
