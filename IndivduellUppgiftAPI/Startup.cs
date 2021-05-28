@@ -90,6 +90,9 @@ namespace IndivduellUppgiftAPI
 			{
 				endpoints.MapControllers();
 			});
+
+			RoleSetup.CreateInitialRoles(app.ApplicationServices).Wait();
 		}
+
 	}
 }
