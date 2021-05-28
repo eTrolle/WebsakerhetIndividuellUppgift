@@ -12,6 +12,7 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using IndivduellUppgiftAPI.Data;
 
 namespace IndivduellUppgiftAPI.Controllers
 {
@@ -20,12 +21,14 @@ namespace IndivduellUppgiftAPI.Controllers
 	public class AuthenticateController : ControllerBase
 	{
 		private readonly UserManager<AppUser> userManager;
+		private readonly NorthwindContext _northwindContext;
 		private readonly IConfiguration _configuration;
 
-		public AuthenticateController(UserManager<AppUser> userManager, IConfiguration configuration)
+		public AuthenticateController(UserManager<AppUser> userManager, NorthwindContext northwindContext, IConfiguration configuration)
 		{
 			this.userManager = userManager;
 			this._configuration = configuration;
+			this._northwindContext = northwindContext;
 		}
 
 		[HttpPost]
@@ -33,14 +36,17 @@ namespace IndivduellUppgiftAPI.Controllers
 		public async Task<IActionResult> Login([FromBody] LoginModel model)
 		{
 			var user = await userManager.FindByNameAsync(model.Username);
+
 			if(user != null && await userManager.CheckPasswordAsync(user, model.Password))
 			{
 				var userRoles = await userManager.GetRolesAsync(user);
+				var country = _northwindContext.Employees.FirstOrDefault(x => x.EmployeeId == user.NorthwindLink).Country;
 
 				var claims = new List<Claim>
 				{
 					new Claim(ClaimTypes.Name, user.UserName),
-					new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+					new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+					new Claim(ClaimTypes.Country, country)
 				};
 
 				foreach(var role in userRoles)
@@ -57,7 +63,7 @@ namespace IndivduellUppgiftAPI.Controllers
 						new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
 						SecurityAlgorithms.HmacSha256)
 					);
-
+				
 				return Ok(new
 				{
 					token = new JwtSecurityTokenHandler().WriteToken(token),
@@ -77,16 +83,28 @@ namespace IndivduellUppgiftAPI.Controllers
 			if (userExists != null && emailExists != null)
 				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User already exists or the Email is already registered." });
 
+			var employee = _northwindContext.Employees.FirstOrDefault(x => x.FirstName == model.FirstName && x.LastName == model.LastName);
+			var oldEmployeeLink = userManager.Users.FirstOrDefault(x => x.NorthwindLink == employee.EmployeeId);
+
+			if (employee == null && oldEmployeeLink != null)
+				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "Unable to link Employee" });
+
 			AppUser user = new AppUser()
 			{
 				Email = model.Email,
 				SecurityStamp = Guid.NewGuid().ToString(),
-				UserName = model.Username
+				UserName = model.Username,
+				NorthwindLink = employee.EmployeeId
 			};
 
 			var result = await userManager.CreateAsync(user, model.Password);
 			if (!result.Succeeded)
 				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "Something went wrong. Try again." });
+
+			var admins = await userManager.GetUsersInRoleAsync("Admin");
+			if (admins.Count == 0)
+				await userManager.AddToRoleAsync(user, "Admin");
+			await userManager.AddToRoleAsync(user, "Employee");
 
 			return Ok(new Response { Status = "Success", Message = "User registered successfully" });
 		}
