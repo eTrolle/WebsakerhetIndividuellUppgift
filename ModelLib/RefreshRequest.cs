@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace ModelLib
 {
-	public class Response : IResponse
+	public class RefreshRequest
 	{
-		public string Status { get; set; }
-		public string Message { get; set; }
+		public string Token { get; set; }
+		public string RefreshToken { get; set; }
 	}
 }

@@ -13,7 +13,6 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using IndivduellUppgiftAPI.Data;
-using IndivduellUppgiftAPI.Services;
 
 namespace IndivduellUppgiftAPI.Services
 {
@@ -21,16 +20,21 @@ namespace IndivduellUppgiftAPI.Services
 	{
 		Task<AuthenticateResponse> Authenticate(LoginModel model);
 		Task<Response> Register(RegisterModel model);
+		Task<IResponse> RefreshJWT(RefreshRequest model);
 	}
 	public class UserService : IUserService
 	{
 		private readonly UserManager<AppUser> userManager;
+		private readonly TokenValidationParameters tokenValidationParameters;
+		private readonly AppDbContext appDbContext;
 		private readonly NorthwindContext northwindContext;
 		private readonly IConfiguration _configuration;
 
-		public UserService(UserManager<AppUser> userManager, NorthwindContext northwindContext, IConfiguration configuration)
+		public UserService(UserManager<AppUser> userManager, TokenValidationParameters tokenValidationParameters, AppDbContext appDbContext, NorthwindContext northwindContext, IConfiguration configuration)
 		{
 			this.userManager = userManager;
+			this.tokenValidationParameters = tokenValidationParameters;
+			this.appDbContext = appDbContext;
 			this.northwindContext = northwindContext;
 			this._configuration = configuration;
 		}
@@ -44,13 +48,10 @@ namespace IndivduellUppgiftAPI.Services
 				return null;
 			}
 
+
 			var token = await GenerateJWT(user);
 
-			return new AuthenticateResponse()
-			{
-				Token = new JwtSecurityTokenHandler().WriteToken(token),
-				ValidTo = token.ValidTo
-			};
+			return token;
 		}
 
 		public async Task<Response> Register(RegisterModel model)
@@ -87,7 +88,101 @@ namespace IndivduellUppgiftAPI.Services
 			return new Response { Status = "Success", Message = "User registered successfully" };
 		}
 
-		private async Task<JwtSecurityToken> GenerateJWT(AppUser user)
+		public async Task<IResponse> RefreshJWT(RefreshRequest refreshRequest)
+		{
+			var jwtTokenHandler = new JwtSecurityTokenHandler();
+			try
+			{
+				var principal = jwtTokenHandler.ValidateToken(refreshRequest.Token, tokenValidationParameters, out var validatedToken);
+
+				if (validatedToken is JwtSecurityToken jwtSecurityToken)
+				{
+					var result = jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase);
+
+					if (result == false)
+						return null;
+
+				}
+
+				//checking if JWT token has expired
+				var utcExpiryDate = long.Parse(principal.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Exp).Value);
+				var unixDateTimeNow = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();
+
+				if(utcExpiryDate > unixDateTimeNow)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "Token has not Expired"
+					};
+				}
+
+				var storedRefreshToken = appDbContext.RefreshTokens.FirstOrDefault(x => x.Token == refreshRequest.RefreshToken);
+				
+				//checking if RefreshToken is still valid
+				if(storedRefreshToken == null)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "Invalid RefreshToken"
+					};
+				}
+
+				if(DateTime.Now > storedRefreshToken.ExpiryDate)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "RefreshToken is expired. Login again"
+					};
+				}
+
+				if(storedRefreshToken.IsUsed)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "RefreshToken is used"
+					};
+				}
+
+				if (storedRefreshToken.IsRevoked)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "RefreshToken is Revoked"
+					};
+				}
+
+				var jti = principal.Claims.SingleOrDefault(x => x.Type == JwtRegisteredClaimNames.Jti).Value;
+
+				//check if JWT is the correct
+				if(storedRefreshToken.JwtId != jti)
+				{
+					return new Response()
+					{
+						Status = "Error",
+						Message = "JWT does not match"
+					};
+				}
+
+				storedRefreshToken.IsUsed = true;
+				appDbContext.RefreshTokens.Update(storedRefreshToken);
+				await appDbContext.SaveChangesAsync();
+
+				var user = await userManager.FindByIdAsync(storedRefreshToken.UserId);
+				return await GenerateJWT(user);
+			}
+			catch(Exception e)
+			{
+				return null;
+			}
+
+		}
+
+		private async Task<AuthenticateResponse> GenerateJWT(AppUser user)
 		{
 			var userRoles = await userManager.GetRolesAsync(user);
 			var country = northwindContext.Employees.FirstOrDefault(x => x.EmployeeId == user.NorthwindLink).Country;
@@ -106,14 +201,34 @@ namespace IndivduellUppgiftAPI.Services
 			var token = new JwtSecurityToken(
 				issuer: _configuration["JWT:ValidIssuer"],
 				audience: _configuration["JWT:ValidAudience"],
-				expires: DateTime.Now.AddHours(1),
+				expires: DateTime.Now.AddMinutes(10),
 				claims: claims,
 				signingCredentials: new SigningCredentials(
 					new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
 					SecurityAlgorithms.HmacSha256)
 				);
 
-			return token;
+			var refreshToken = new RefreshToken()
+			{
+				JwtId = token.Id,
+				IsUsed = false,
+				UserId = user.Id,
+				ExpiryDate = DateTime.Now.AddDays(1),
+				IsRevoked = false,
+				Token = Guid.NewGuid().ToString()
+			};
+
+			await appDbContext.RefreshTokens.AddAsync(refreshToken);
+			await appDbContext.SaveChangesAsync();
+
+			return new AuthenticateResponse()
+			{
+				Status = "Success",
+				Message = "Token successfully generated",
+				JWT = new JwtSecurityTokenHandler().WriteToken(token),
+				JWTValidTo = token.ValidTo,
+				RefreshToken = refreshToken.Token
+			};
 		}
 	}
 }

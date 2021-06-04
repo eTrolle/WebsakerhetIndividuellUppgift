@@ -46,6 +46,16 @@ namespace IndivduellUppgiftAPI
 				.AddDefaultTokenProviders();
 
 			//Authentication
+			var tokenValidationParameters = new TokenValidationParameters()
+			{
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				ValidateLifetime = true,
+				ValidateIssuerSigningKey = true,
+				ValidAudience = Configuration["JWT:ValidAudience"],
+				ValidIssuer = Configuration["JWT:ValidIssuer"],
+				IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["JWT:Secret"]))
+			};
 			services.AddAuthentication(options =>
 			{
 				options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -55,21 +65,14 @@ namespace IndivduellUppgiftAPI
 				.AddJwtBearer(options =>
 				{
 					options.SaveToken = true;
-					options.TokenValidationParameters = new TokenValidationParameters()
-					{
-						ValidateIssuer = true,
-						ValidateAudience = true,
-						ValidAudience = Configuration["JWT:ValidAudience"],
-						ValidIssuer = Configuration["JWT:ValidIssuer"],
-						IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["JWT:Secret"]))
-					};
+					options.TokenValidationParameters = tokenValidationParameters;
 				});
 
-			//
+			//App Services
 			services.AddScoped<IUserService, UserService>();
+			services.AddSingleton(tokenValidationParameters);
 
 			//Swagger
-
 			services.AddSwaggerGen(c =>
 			{
 				c.SwaggerDoc("v1", new OpenApiInfo { Title = "IndivduellUppgiftAPI", Version = "v1" });
@@ -112,10 +115,9 @@ namespace IndivduellUppgiftAPI
 
 			app.UseHttpsRedirection();
 
-			app.UseRouting();
-
-			app.UseAuthorization();
 			app.UseAuthentication();
+			app.UseRouting();
+			app.UseAuthorization();
 
 			app.UseEndpoints(endpoints =>
 			{

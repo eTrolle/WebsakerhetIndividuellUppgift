@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace ModelLib
 {
-	public class Response : IResponse
+	public interface IResponse
 	{
-		public string Status { get; set; }
-		public string Message { get; set; }
+		string Status { get; set; }
+		string Message { get; set; }
 	}
 }

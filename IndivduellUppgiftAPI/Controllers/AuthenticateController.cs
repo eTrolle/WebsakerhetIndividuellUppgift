@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using ModelLib;
 using IndivduellUppgiftAPI.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace IndivduellUppgiftAPI.Controllers
 {
@@ -35,6 +36,20 @@ namespace IndivduellUppgiftAPI.Controllers
 		public async Task<IActionResult> Register([FromBody] RegisterModel model)
 		{
 			var result = await _userService.Register(model);
+
+			if (result.Status == "Error")
+				return StatusCode(StatusCodes.Status500InternalServerError, result);
+
+			return Ok(result);
+		}
+
+		[HttpPost]
+		[Route("refresh")]
+		public async Task<IActionResult> Refresh([FromBody] RefreshRequest model)
+		{
+			var result = await _userService.RefreshJWT(model);
+			if (result == null)
+				return StatusCode(StatusCodes.Status500InternalServerError, new Response() { Status = "Error", Message = "Unhelpful error message" });
 
 			if (result.Status == "Error")
 				return StatusCode(StatusCodes.Status500InternalServerError, result);

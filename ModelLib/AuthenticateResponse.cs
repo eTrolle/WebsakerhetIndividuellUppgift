@@ -6,9 +6,12 @@ using System.Threading.Tasks;
 
 namespace ModelLib
 {
-	public class AuthenticateResponse
+	public class AuthenticateResponse : IResponse
 	{
-		public string Token { get; set; }
-		public DateTime ValidTo { get; set; }
+		public string Status { get; set; }
+		public string Message { get; set; }
+		public string JWT { get; set; }
+		public DateTime JWTValidTo { get; set; }
+		public string RefreshToken { get; set; }
 	}
 }
