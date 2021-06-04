@@ -19,6 +19,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using IndivduellUppgiftAPI.Data;
 using IndivduellUppgiftAPI.Services;
+using System.Text.Json.Serialization;
 
 namespace IndivduellUppgiftAPI
 {
@@ -35,7 +36,7 @@ namespace IndivduellUppgiftAPI
 		public void ConfigureServices(IServiceCollection services)
 		{
 
-			services.AddControllers();
+			services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve);
 			services.AddDbContext<AppDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("IdentityDatabase")));
 			services.AddDbContext<NorthwindContext>(options => options.UseSqlServer(Configuration.GetConnectionString("NorthwindDatabase")));
 

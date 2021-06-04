@@ -13,7 +13,6 @@ namespace IndivduellUppgiftAPI.Controllers
 {
 	[Route("api/[controller]")]
 	[ApiController]
-	[Authorize]
 	public class NorthwindController : ControllerBase
 	{
 		private readonly NorthwindContext _context;
@@ -28,7 +27,8 @@ namespace IndivduellUppgiftAPI.Controllers
 		[HttpGet("Employees")]
 		public async Task<ActionResult<IEnumerable<Employee>>> GetEmployees()
 		{
-			return await _context.Employees.ToListAsync();
+			var employees = await _context.Employees.ToListAsync();
+			return employees;
 		}
 	}
 }
