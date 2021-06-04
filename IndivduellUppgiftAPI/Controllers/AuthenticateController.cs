@@ -1,18 +1,8 @@
-﻿using IndivduellUppgiftAPI.Authentication;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using ModelLib;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using IndivduellUppgiftAPI.Data;
+using IndivduellUppgiftAPI.Services;
 
 namespace IndivduellUppgiftAPI.Controllers
 {
@@ -20,93 +10,36 @@ namespace IndivduellUppgiftAPI.Controllers
 	[ApiController]
 	public class AuthenticateController : ControllerBase
 	{
-		private readonly UserManager<AppUser> userManager;
-		private readonly NorthwindContext _northwindContext;
-		private readonly IConfiguration _configuration;
+		private readonly IUserService _userService;
 
-		public AuthenticateController(UserManager<AppUser> userManager, NorthwindContext northwindContext, IConfiguration configuration)
+		public AuthenticateController(IUserService userService)
 		{
-			this.userManager = userManager;
-			this._configuration = configuration;
-			this._northwindContext = northwindContext;
+			_userService = userService;
 		}
 
 		[HttpPost]
 		[Route("login")]
 		public async Task<IActionResult> Login([FromBody] LoginModel model)
 		{
-			var user = await userManager.FindByNameAsync(model.Username);
+			var result = await _userService.Authenticate(model);
 
-			if(user != null && await userManager.CheckPasswordAsync(user, model.Password))
-			{
-				var userRoles = await userManager.GetRolesAsync(user);
-				var country = _northwindContext.Employees.FirstOrDefault(x => x.EmployeeId == user.NorthwindLink).Country;
+			if (result == null)
+				return BadRequest(new Response() { Status = "Error", Message = "Invalid user or password" });
 
-				var claims = new List<Claim>
-				{
-					new Claim(ClaimTypes.Name, user.UserName),
-					new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-					new Claim(ClaimTypes.Country, country)
-				};
+			return Ok(result);
 
-				foreach(var role in userRoles)
-				{
-					claims.Add(new Claim(ClaimTypes.Role, role));
-				}
-
-				var token = new JwtSecurityToken(
-					issuer: _configuration["JWT:ValidIssuer"],
-					audience: _configuration["JWT:ValidAudience"],
-					expires: DateTime.Now.AddHours(1),
-					claims: claims,
-					signingCredentials: new SigningCredentials(
-						new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
-						SecurityAlgorithms.HmacSha256)
-					);
-				
-				return Ok(new
-				{
-					token = new JwtSecurityTokenHandler().WriteToken(token),
-					expiration = token.ValidTo
-				});
-			}
-			return Unauthorized();
 		}
 
 		[HttpPost]
 		[Route("register")]
 		public async Task<IActionResult> Register([FromBody] RegisterModel model)
 		{
-			var userExists = await userManager.FindByNameAsync(model.Username);
-			var emailExists = await userManager.FindByEmailAsync(model.Email);
+			var result = await _userService.Register(model);
 
-			if (userExists != null && emailExists != null)
-				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User already exists or the Email is already registered." });
+			if (result.Status == "Error")
+				return StatusCode(StatusCodes.Status500InternalServerError, result);
 
-			var employee = _northwindContext.Employees.FirstOrDefault(x => x.FirstName == model.FirstName && x.LastName == model.LastName);
-			var oldEmployeeLink = userManager.Users.FirstOrDefault(x => x.NorthwindLink == employee.EmployeeId);
-
-			if (employee == null && oldEmployeeLink != null)
-				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "Unable to link Employee" });
-
-			AppUser user = new AppUser()
-			{
-				Email = model.Email,
-				SecurityStamp = Guid.NewGuid().ToString(),
-				UserName = model.Username,
-				NorthwindLink = employee.EmployeeId
-			};
-
-			var result = await userManager.CreateAsync(user, model.Password);
-			if (!result.Succeeded)
-				return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "Something went wrong. Try again." });
-
-			var admins = await userManager.GetUsersInRoleAsync("Admin");
-			if (admins.Count == 0)
-				await userManager.AddToRoleAsync(user, "Admin");
-			await userManager.AddToRoleAsync(user, "Employee");
-
-			return Ok(new Response { Status = "Success", Message = "User registered successfully" });
+			return Ok(result);
 		}
 	}
 }
