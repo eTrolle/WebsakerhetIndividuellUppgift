@@ -70,6 +70,7 @@ namespace IndivduellUppgiftAPI
 
 			//App Services
 			services.AddScoped<IUserService, UserService>();
+			services.AddScoped<INorthwindService, NorthwindService>();
 			services.AddSingleton(tokenValidationParameters);
 
 			//Swagger
@@ -124,7 +125,8 @@ namespace IndivduellUppgiftAPI
 				endpoints.MapControllers();
 			});
 
-			RoleSetup.CreateInitialRoles(app.ApplicationServices).Wait();
+			Setup.CreateInitialRoles(app.ApplicationServices).Wait();
+			Setup.CreateInitialUsers(app.ApplicationServices).Wait();
 		}
 
 	}
