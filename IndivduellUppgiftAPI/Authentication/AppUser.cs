@@ -7,5 +7,6 @@ namespace IndivduellUppgiftAPI.Authentication
 	{
 		[Required]
 		public int NorthwindLink { get; set; }
+		public string jti { get; set; }
 	}
 }

@@ -13,6 +13,9 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using IndivduellUppgiftAPI.Data;
+using Microsoft.EntityFrameworkCore;
+using System.Transactions;
+using Microsoft.Data.SqlClient;
 
 namespace IndivduellUppgiftAPI.Services
 {
@@ -21,6 +24,12 @@ namespace IndivduellUppgiftAPI.Services
 		Task<AuthenticateResponse> Authenticate(LoginModel model);
 		Task<Response> Register(RegisterModel model);
 		Task<IResponse> RefreshJWT(RefreshRequest model);
+		Task<IEnumerable<AppUser>> GetUsers();
+
+		Task<IResponse> DeleteUser(string username);
+		Task<IResponse> UpdateUser(string username, UpdateModel model);
+
+		bool CheckJti(ClaimsPrincipal claimsPrincipal);
 	}
 	public class UserService : IUserService
 	{
@@ -47,6 +56,7 @@ namespace IndivduellUppgiftAPI.Services
 			{
 				return null;
 			}
+
 
 
 			var token = await GenerateJWT(user);
@@ -108,7 +118,7 @@ namespace IndivduellUppgiftAPI.Services
 				var utcExpiryDate = long.Parse(principal.Claims.FirstOrDefault(x => x.Type == JwtRegisteredClaimNames.Exp).Value);
 				var unixDateTimeNow = new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds();
 
-				if(utcExpiryDate > unixDateTimeNow)
+				if (utcExpiryDate > unixDateTimeNow)
 				{
 					return new Response()
 					{
@@ -118,9 +128,9 @@ namespace IndivduellUppgiftAPI.Services
 				}
 
 				var storedRefreshToken = appDbContext.RefreshTokens.FirstOrDefault(x => x.Token == refreshRequest.RefreshToken);
-				
+
 				//checking if RefreshToken is still valid
-				if(storedRefreshToken == null)
+				if (storedRefreshToken == null)
 				{
 					return new Response()
 					{
@@ -128,8 +138,7 @@ namespace IndivduellUppgiftAPI.Services
 						Message = "Invalid RefreshToken"
 					};
 				}
-
-				if(DateTime.Now > storedRefreshToken.ExpiryDate)
+				if (DateTime.Now > storedRefreshToken.ExpiryDate)
 				{
 					return new Response()
 					{
@@ -138,7 +147,7 @@ namespace IndivduellUppgiftAPI.Services
 					};
 				}
 
-				if(storedRefreshToken.IsUsed)
+				if (storedRefreshToken.IsUsed)
 				{
 					return new Response()
 					{
@@ -159,7 +168,7 @@ namespace IndivduellUppgiftAPI.Services
 				var jti = principal.Claims.SingleOrDefault(x => x.Type == JwtRegisteredClaimNames.Jti).Value;
 
 				//check if JWT is the correct
-				if(storedRefreshToken.JwtId != jti)
+				if (storedRefreshToken.JwtId != jti)
 				{
 					return new Response()
 					{
@@ -175,7 +184,7 @@ namespace IndivduellUppgiftAPI.Services
 				var user = await userManager.FindByIdAsync(storedRefreshToken.UserId);
 				return await GenerateJWT(user);
 			}
-			catch(Exception e)
+			catch (Exception e)
 			{
 				return null;
 			}
@@ -187,10 +196,12 @@ namespace IndivduellUppgiftAPI.Services
 			var userRoles = await userManager.GetRolesAsync(user);
 			var country = northwindContext.Employees.FirstOrDefault(x => x.EmployeeId == user.NorthwindLink).Country;
 
+			var jti = Guid.NewGuid().ToString();
+
 			var claims = new List<Claim>
 				{
 					new Claim(ClaimTypes.Name, user.UserName),
-					new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+					new Claim(JwtRegisteredClaimNames.Jti, jti),
 					new Claim(ClaimTypes.Country, country)
 				};
 			foreach (var role in userRoles)
@@ -221,6 +232,10 @@ namespace IndivduellUppgiftAPI.Services
 			await appDbContext.RefreshTokens.AddAsync(refreshToken);
 			await appDbContext.SaveChangesAsync();
 
+			user.jti = jti;
+			appDbContext.Users.Update(user);
+			await appDbContext.SaveChangesAsync();
+
 			return new AuthenticateResponse()
 			{
 				Status = "Success",
@@ -229,6 +244,58 @@ namespace IndivduellUppgiftAPI.Services
 				JWTValidTo = token.ValidTo,
 				RefreshToken = refreshToken.Token
 			};
+		}
+
+		public async Task<IEnumerable<AppUser>> GetUsers()
+		{
+			return await appDbContext.Users.Select(x => x).ToListAsync();
+		}
+
+		public async Task<IResponse> UpdateUser(string username, UpdateModel model)
+		{
+			var user = await userManager.FindByNameAsync(username);
+
+			if (user == null)
+				return null;
+
+			var mailExists = await userManager.FindByEmailAsync(model.NewEmail);
+			if (mailExists != null)
+				return null;
+
+			//add more for each field that should be updated.
+			if (model.NewEmail != null)
+				user.Email = model.NewEmail;
+
+			var result = await userManager.UpdateAsync(user);
+
+			if (!result.Succeeded)
+				return null;
+			return new Response { Status = "Success", Message = "User updated successfully" };
+
+		}
+
+		public async Task<IResponse> DeleteUser(string username)
+		{
+
+			var user = await userManager.FindByNameAsync(username);
+			if (user == null)
+				return new Response() { Status = "Error", Message = "User does not exist in db" };
+
+			var result = appDbContext.Database.ExecuteSqlRawAsync("DELETE FROM AspNetUsers WHERE UserName=@username", new SqlParameter("@username", username));
+
+
+
+			return new Response() { Status = "Success", Message = "User successfully deleted" };
+		}
+
+		public bool CheckJti(ClaimsPrincipal claimsPrincipal)
+		{
+			var claimJTI = ((ClaimsIdentity)claimsPrincipal.Identity).Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti);
+			var user = appDbContext.Users.FirstOrDefault(x => x.UserName == claimsPrincipal.Identity.Name);
+
+			if (claimJTI.Value == user.jti)
+				return true;
+			return false;
 		}
 	}
 }

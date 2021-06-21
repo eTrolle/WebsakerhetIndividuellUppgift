@@ -34,8 +34,10 @@ namespace IndivduellUppgiftAPI.Controllers
 		[HttpGet("GetAllOrders")]
 		public async Task<ActionResult<IEnumerable<Order>>> GetAllOrders()
 		{
+			if (!_userService.CheckJti(User))
+				return StatusCode(StatusCodes.Status401Unauthorized, new Response() { Status = "Unauthorized", Message = "Invalid Token" });
 			IEnumerable<Order> orders;
-			if (User.IsInRole("CountryManager"))
+			if (User.IsInRole(Roles.CountryManager))
 			{
 				var userCountry = User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Country).Value;
 
@@ -52,13 +54,14 @@ namespace IndivduellUppgiftAPI.Controllers
 			return Ok(orders);
 		}
 
-		[Authorize(Roles = "Admin,Vd,CountryManager")] //old
 		[RoleAuthorize(Roles.Admin, Roles.Vd, Roles.CountryManager)]//new
 		[HttpGet("GetCountryOrders")]
 		public async Task<ActionResult<IEnumerable<Order>>> GetCountryOrders([FromQuery] string country)
 		{
+			if (!_userService.CheckJti(User))
+				return StatusCode(StatusCodes.Status401Unauthorized, new Response() { Status = "Unauthorized", Message = "Invalid Token" });
 			IEnumerable<Order> orders;
-			if (User.IsInRole("CountryManager"))
+			if (User.IsInRole(Roles.CountryManager))
 			{
 				var userCountry = User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.Country).Value;
 
@@ -81,6 +84,9 @@ namespace IndivduellUppgiftAPI.Controllers
 		[HttpGet("GetMyOrders")]
 		public async Task<ActionResult<IEnumerable<Order>>> GetMyOrders([FromQuery] string username)
 		{
+			if(!_userService.CheckJti(User))
+				return StatusCode(StatusCodes.Status401Unauthorized, new Response() { Status = "Unauthorized", Message = "Invalid Token" });
+
 			if (username != null)
 			{
 				if (!(User.IsInRole(Roles.Vd) || User.IsInRole(Roles.Admin)))

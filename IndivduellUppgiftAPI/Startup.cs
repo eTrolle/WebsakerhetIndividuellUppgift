@@ -41,7 +41,15 @@ namespace IndivduellUppgiftAPI
 			services.AddDbContext<NorthwindContext>(options => options.UseSqlServer(Configuration.GetConnectionString("NorthwindDatabase")));
 
 			//Identity
-			services.AddIdentity<AppUser, IdentityRole>()
+			services.AddIdentity<AppUser, IdentityRole>(options =>
+			{
+				options.Password.RequireDigit = true;
+				options.Password.RequiredLength = 8;
+				options.Password.RequiredUniqueChars = 1;
+				options.Password.RequireLowercase = true;
+				options.Password.RequireNonAlphanumeric = true;
+				options.Password.RequireUppercase = true;
+			})
 				.AddEntityFrameworkStores<AppDbContext>()
 				.AddDefaultTokenProviders();
 
